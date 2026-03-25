@@ -1,12 +1,61 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/word.dart';
+import '../models/progress.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String? get userId => _auth.currentUser?.uid;
+
+  Future<UserProgress> getUserProgress() async {
+    final uid = userId;
+    if (uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final doc = await _firestore.collection('users').doc(uid).get();
+    if (doc.exists) {
+      return UserProgress.fromMap(uid, doc.data()!);
+    } else {
+      final newProgress = UserProgress(uid: uid, xp: 0, level: 1);
+      await _firestore.collection('users').doc(uid).set(newProgress.toMap());
+      return newProgress;
+    }
+  }
+
+  Future<UserProgress> updateUserProgress(int xpEarned) async {
+    final uid = userId;
+    if (uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final doc = await _firestore.collection('users').doc(uid).get();
+    UserProgress progress;
+
+    if (doc.exists) {
+      progress = UserProgress.fromMap(uid, doc.data()!);
+    } else {
+      progress = UserProgress(
+        uid: uid,
+        xp: 0,
+        level: 1,
+        streak: 0,
+        lastActiveDate: '',
+      );
+    }
+
+    progress.updateStreak();
+
+    progress.xp += xpEarned;
+    final newLevel = UserProgress.calculateLevel(progress.xp);
+    progress.level = newLevel;
+
+    await _firestore.collection('users').doc(uid).set(progress.toMap());
+
+    return progress;
+  }
 
   Future<List<Word>> getWords() async {
     if (userId == null) return [];

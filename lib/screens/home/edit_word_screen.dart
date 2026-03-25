@@ -3,19 +3,32 @@ import 'package:provider/provider.dart';
 import '../../models/word.dart';
 import '../../providers/word_provider.dart';
 
-class AddWordScreen extends StatefulWidget {
-  const AddWordScreen({super.key});
+class EditWordScreen extends StatefulWidget {
+  final Word word;
+
+  const EditWordScreen({super.key, required this.word});
 
   @override
-  State<AddWordScreen> createState() => _AddWordScreenState();
+  State<EditWordScreen> createState() => _EditWordScreenState();
 }
 
-class _AddWordScreenState extends State<AddWordScreen> {
-  final _originalController = TextEditingController();
-  final _translationController = TextEditingController();
-  final _categoryController = TextEditingController();
-  int _difficulty = 1;
+class _EditWordScreenState extends State<EditWordScreen> {
+  late final TextEditingController _originalController;
+  late final TextEditingController _translationController;
+  late final TextEditingController _categoryController;
+  late int _difficulty;
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _originalController = TextEditingController(text: widget.word.original);
+    _translationController = TextEditingController(
+      text: widget.word.translation,
+    );
+    _categoryController = TextEditingController(text: widget.word.category);
+    _difficulty = widget.word.difficulty;
+  }
 
   @override
   void dispose() {
@@ -25,7 +38,7 @@ class _AddWordScreenState extends State<AddWordScreen> {
     super.dispose();
   }
 
-  Future<void> _saveWord() async {
+  Future<void> _updateWord() async {
     if (_originalController.text.isEmpty ||
         _translationController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -38,24 +51,22 @@ class _AddWordScreenState extends State<AddWordScreen> {
       _isSaving = true;
     });
 
-    final word = Word(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+    final updatedWord = widget.word.copyWith(
       original: _originalController.text.trim(),
       translation: _translationController.text.trim(),
       category: _categoryController.text.trim().isEmpty
           ? 'General'
           : _categoryController.text.trim(),
       difficulty: _difficulty,
-      createdAt: DateTime.now(),
     );
 
     final wordProvider = Provider.of<WordProvider>(context, listen: false);
 
     try {
-      await wordProvider.addWord(word);
+      await wordProvider.updateWord(updatedWord);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Word saved successfully')),
+          const SnackBar(content: Text('Word updated successfully')),
         );
         Navigator.pop(context);
       }
@@ -63,7 +74,7 @@ class _AddWordScreenState extends State<AddWordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save word: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed to update word: $e')));
       }
     } finally {
       if (mounted) {
@@ -78,7 +89,7 @@ class _AddWordScreenState extends State<AddWordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Word'),
+        title: const Text('Edit Word'),
         actions: [
           if (_isSaving)
             const Padding(
@@ -90,7 +101,7 @@ class _AddWordScreenState extends State<AddWordScreen> {
               ),
             )
           else
-            IconButton(icon: const Icon(Icons.save), onPressed: _saveWord),
+            IconButton(icon: const Icon(Icons.save), onPressed: _updateWord),
         ],
       ),
       body: Padding(
