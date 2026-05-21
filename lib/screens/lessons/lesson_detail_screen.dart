@@ -28,6 +28,39 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       appBar: AppBar(title: Text(lessonTitle)),
       body: Column(
         children: [
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF58CC02), Color(0xFF9BE564)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.school, color: Colors.white, size: 34),
+                const SizedBox(height: 10),
+                Text(
+                  lessonTitle,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Review the words, then start training.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -47,6 +80,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                   return const Center(child: Text('No words in this lesson'));
                 }
                 return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final doc = docs[index];
@@ -55,12 +89,28 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                     final translation = data['translation'] ?? '';
                     final example = data['example'] ?? '';
                     return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                      margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
-                        title: Text(word),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: Container(
+                          height: 42,
+                          width: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F6FF),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.text_fields,
+                            color: Color(0xFF1CB0F6),
+                          ),
+                        ),
+                        title: Text(
+                          word,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -100,9 +150,12 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
+                  minimumSize: const Size(double.infinity, 54),
                 ),
-                child: const Text('Start training'),
+                child: const Text(
+                  'Start training',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ),

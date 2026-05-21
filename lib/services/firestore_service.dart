@@ -17,15 +17,39 @@ class FirestoreService {
 
     final doc = await _firestore.collection('users').doc(uid).get();
     if (doc.exists) {
-      return UserProgress.fromMap(uid, doc.data()!);
+      final data = doc.data()!;
+      final progress = UserProgress.fromMap(uid, data);
+      var shouldSaveProgress = progress.resetDailyGoalIfNeeded();
+      if (!data.containsKey('hearts') ||
+          !data.containsKey('maxHearts') ||
+          !data.containsKey('lastHeartRefill')) {
+        shouldSaveProgress = true;
+      }
+      if (progress.refillHeartsIfNeeded()) {
+        shouldSaveProgress = true;
+      }
+      final calculatedLevel = UserProgress.calculateLevel(progress.xp);
+      if (progress.level != calculatedLevel) {
+        progress.level = calculatedLevel;
+        shouldSaveProgress = true;
+      }
+      if (shouldSaveProgress) {
+        await _firestore.collection('users').doc(uid).set(progress.toMap());
+      }
+      return progress;
     } else {
       final newProgress = UserProgress(uid: uid, xp: 0, level: 1);
+      newProgress.resetDailyGoalIfNeeded();
+      newProgress.refillHeartsIfNeeded();
       await _firestore.collection('users').doc(uid).set(newProgress.toMap());
       return newProgress;
     }
   }
 
-  Future<UserProgress> updateUserProgress(int xpEarned) async {
+  Future<UserProgress> updateUserProgress(
+    int xpEarned, {
+    String? completedLessonId,
+  }) async {
     final uid = userId;
     if (uid == null) {
       throw Exception('User not authenticated');
@@ -46,14 +70,54 @@ class FirestoreService {
       );
     }
 
+    progress.resetDailyGoalIfNeeded();
+    progress.refillHeartsIfNeeded();
     progress.updateStreak();
 
     progress.xp += xpEarned;
+    progress.addDailyXp(xpEarned);
     final newLevel = UserProgress.calculateLevel(progress.xp);
     progress.level = newLevel;
+    if (completedLessonId != null && completedLessonId.isNotEmpty) {
+      progress.markLessonCompleted(completedLessonId);
+    }
 
     await _firestore.collection('users').doc(uid).set(progress.toMap());
 
+    return progress;
+  }
+
+  Future<UserProgress> loseHeart() async {
+    final uid = userId;
+    if (uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final doc = await _firestore.collection('users').doc(uid).get();
+    final progress = doc.exists
+        ? UserProgress.fromMap(uid, doc.data()!)
+        : UserProgress(uid: uid, xp: 0, level: 1);
+
+    progress.loseHeart();
+    await _firestore.collection('users').doc(uid).set(progress.toMap());
+    return progress;
+  }
+
+  Future<UserProgress> markDailyGoalCelebrated() async {
+    final uid = userId;
+    if (uid == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final doc = await _firestore.collection('users').doc(uid).get();
+    final progress = doc.exists
+        ? UserProgress.fromMap(uid, doc.data()!)
+        : UserProgress(uid: uid, xp: 0, level: 1);
+
+    progress.resetDailyGoalIfNeeded();
+    progress.refillHeartsIfNeeded();
+    progress.markDailyGoalCelebrated();
+    await _firestore.collection('users').doc(uid).set(progress.toMap());
     return progress;
   }
 

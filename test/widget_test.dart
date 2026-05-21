@@ -1,30 +1,39 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:flutter_application_5/main.dart';
+import 'package:flutter_application_5/models/progress.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('UserProgress', () {
+    test('calculates levels from total XP', () {
+      expect(UserProgress.calculateLevel(0), 1);
+      expect(UserProgress.calculateLevel(99), 1);
+      expect(UserProgress.calculateLevel(100), 2);
+      expect(UserProgress.calculateLevel(250), 3);
+      expect(UserProgress.calculateLevel(450), 4);
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('tracks XP progress toward the next level', () {
+      final progress = UserProgress(uid: 'user-id', xp: 340);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+      expect(progress.getXpForCurrentLevel(), 250);
+      expect(progress.getXpForNextLevel(), 450);
+      expect(progress.getCurrentLevelProgress(), 90);
+      expect(progress.getXpNeededForNextLevel(), 110);
+      expect(progress.getProgressPercentage(), 0.45);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('loses and refills hearts safely', () {
+      final progress = UserProgress(
+        uid: 'user-id',
+        hearts: 3,
+        maxHearts: 5,
+        lastHeartRefill: DateTime.now().subtract(const Duration(minutes: 11)),
+      );
+
+      expect(progress.refillHeartsIfNeeded(), isTrue);
+      expect(progress.hearts, 5);
+
+      expect(progress.loseHeart(), isTrue);
+      expect(progress.hearts, 4);
+    });
   });
 }

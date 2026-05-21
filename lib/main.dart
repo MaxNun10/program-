@@ -33,22 +33,43 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Language Learning App',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF58CC02),
+          ),
           useMaterial3: true,
-          appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+          scaffoldBackgroundColor: const Color(0xFFF7FBF4),
+          appBarTheme: const AppBarTheme(
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: Color(0xFFF7FBF4),
+            foregroundColor: Color(0xFF25351F),
+          ),
           cardTheme: CardThemeData(
-            elevation: 4,
+            color: Colors.white,
+            elevation: 2,
+            shadowColor: Colors.black12,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF58CC02),
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
+          ),
+          floatingActionButtonTheme: const FloatingActionButtonThemeData(
+            backgroundColor: Color(0xFF58CC02),
+            foregroundColor: Colors.white,
+          ),
+          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+            selectedItemColor: Color(0xFF58CC02),
+            unselectedItemColor: Color(0xFF8B9A86),
+            type: BottomNavigationBarType.fixed,
           ),
         ),
         home: const SplashScreen(),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/lesson_model.dart';
+import '../../models/progress.dart';
 import '../../models/quiz_question.dart';
 import '../../providers/lesson_provider.dart';
 import '../../services/lessons_service.dart';
@@ -20,10 +21,13 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
   LessonModel? lesson;
   List<QuizQuestion> questions = [];
   bool isLoading = true;
+  bool isCompleting = false;
+  bool isOutOfHearts = false;
   int currentIndex = 0;
   List<bool> isAnswered = [];
   List<bool> isCorrect = [];
   int correctCount = 0;
+  UserProgress? userProgress;
   late TextEditingController controller;
   late String lessonId;
 
@@ -44,6 +48,12 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
   }
 
   Future<void> _completeQuiz() async {
+    if (isCompleting) return;
+
+    setState(() {
+      isCompleting = true;
+    });
+
     try {
       final service = LessonsService();
       await saveQuizScore(service.userId!, lessonId, correctCount);
@@ -57,11 +67,22 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
       final currentProgress = await firestoreService.getUserProgress();
       final oldStreak = currentProgress.streak;
       final xpEarned = calculateXpEarned(correctCount, questions.length);
-      final newProgress = await firestoreService.updateUserProgress(xpEarned);
+      final newProgress = await firestoreService.updateUserProgress(
+        xpEarned,
+        completedLessonId: lessonId,
+      );
+      if (mounted && newProgress.shouldCelebrateDailyGoal) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Daily Goal Completed!')),
+        );
+        try {
+          await firestoreService.markDailyGoalCelebrated();
+        } catch (_) {}
+      }
       final levelUp = newProgress.level > currentProgress.level;
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
+        final action = await Navigator.of(context).push<QuizResultAction>(
           MaterialPageRoute(
             builder: (context) => QuizResultScreen(
               correctAnswers: correctCount,
@@ -73,9 +94,24 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
             ),
           ),
         );
+
+        if (!mounted) return;
+
+        if (action == QuizResultAction.retry) {
+          _resetQuiz();
+        } else if (action == QuizResultAction.backToLessons) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        } else {
+          setState(() {
+            isCompleting = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          isCompleting = false;
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Failed to save result')));
@@ -83,9 +119,42 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
     }
   }
 
+  void _resetQuiz() {
+    if (userProgress != null && userProgress!.hearts <= 0) {
+      setState(() {
+        isOutOfHearts = true;
+        isCompleting = false;
+      });
+      return;
+    }
+
+    setState(() {
+      currentIndex = 0;
+      isAnswered = List.filled(questions.length, false);
+      isCorrect = List.filled(questions.length, false);
+      correctCount = 0;
+      isCompleting = false;
+      controller.clear();
+    });
+  }
+
   Future<void> _loadLesson() async {
+    final firestoreService = FirestoreService();
+    final progress = await firestoreService.getUserProgress();
+    if (!mounted) return;
+
+    userProgress = progress;
+    if (progress.hearts <= 0) {
+      setState(() {
+        isOutOfHearts = true;
+        isLoading = false;
+      });
+      return;
+    }
+
     final service = LessonsService();
     final loadedLesson = await service.getLessonById(lessonId);
+    if (!mounted) return;
     if (loadedLesson != null) {
       setState(() {
         lesson = loadedLesson;
@@ -100,6 +169,59 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _recordAnswer(bool correct) async {
+    if (isAnswered[currentIndex]) return;
+
+    setState(() {
+      isAnswered[currentIndex] = true;
+      isCorrect[currentIndex] = correct;
+      if (correct) correctCount++;
+    });
+
+    if (!correct) {
+      await _loseHeartForWrongAnswer();
+    }
+  }
+
+  Future<void> _loseHeartForWrongAnswer() async {
+    try {
+      final progress = await FirestoreService().loseHeart();
+      if (!mounted) return;
+      setState(() {
+        userProgress = progress;
+        isOutOfHearts = progress.hearts <= 0;
+      });
+      if (progress.hearts <= 0) {
+        _showOutOfHeartsDialog(progress);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update hearts')),
+      );
+    }
+  }
+
+  void _showOutOfHeartsDialog(UserProgress progress) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Out of Hearts'),
+          content: Text(
+            'You are out of hearts. Wait for hearts to refill.\n${progress.getHeartRefillText()}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildQuestionContent() {
@@ -120,12 +242,7 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
                     onPressed: isAnswered[currentIndex]
                         ? null
                         : () {
-                            setState(() {
-                              isAnswered[currentIndex] = true;
-                              isCorrect[currentIndex] =
-                                  option == question.correctAnswer;
-                              if (isCorrect[currentIndex]) correctCount++;
-                            });
+                            _recordAnswer(option == question.correctAnswer);
                           },
                     child: Text(option),
                   ),
@@ -157,12 +274,7 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
                     onPressed: isAnswered[currentIndex]
                         ? null
                         : () {
-                            setState(() {
-                              isAnswered[currentIndex] = true;
-                              isCorrect[currentIndex] =
-                                  word == question.correctAnswer;
-                              if (isCorrect[currentIndex]) correctCount++;
-                            });
+                            _recordAnswer(word == question.correctAnswer);
                           },
                     child: Text(word),
                   ),
@@ -189,11 +301,7 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
                 : () {
                     final input = controller.text.trim().toLowerCase();
                     final correct = question.correctAnswer.toLowerCase();
-                    setState(() {
-                      isAnswered[currentIndex] = true;
-                      isCorrect[currentIndex] = input == correct;
-                      if (isCorrect[currentIndex]) correctCount++;
-                    });
+                    _recordAnswer(input == correct);
                   },
             child: const Text('Submit'),
           ),
@@ -208,6 +316,10 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (isOutOfHearts) {
+      return _buildOutOfHeartsScreen();
     }
 
     if (lesson == null || questions.isEmpty) {
@@ -225,7 +337,10 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Quiz: ${lesson!.title}')),
+      appBar: AppBar(
+        title: Text('Quiz: ${lesson!.title}'),
+        actions: [_buildHeartsIndicator()],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -249,23 +364,91 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
                   child: const Text('Previous'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    if (currentIndex == questions.length - 1) {
-                      _completeQuiz();
-                    } else {
-                      setState(() {
-                        currentIndex++;
-                        controller.clear();
-                      });
-                    }
-                  },
-                  child: Text(
-                    currentIndex == questions.length - 1 ? 'Finish' : 'Next',
-                  ),
+                  onPressed: isCompleting
+                          || (userProgress?.hearts ?? 0) <= 0
+                      ? null
+                      : () {
+                          if (currentIndex == questions.length - 1) {
+                            _completeQuiz();
+                          } else {
+                            setState(() {
+                              currentIndex++;
+                              controller.clear();
+                            });
+                          }
+                        },
+                  child: isCompleting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          currentIndex == questions.length - 1
+                              ? 'Finish'
+                              : 'Next',
+                        ),
                 ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeartsIndicator() {
+    final hearts = userProgress?.hearts ?? UserProgress.defaultMaxHearts;
+    final maxHearts = userProgress?.maxHearts ?? UserProgress.defaultMaxHearts;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Center(
+        child: Row(
+          children: [
+            const Icon(Icons.favorite, color: Colors.red),
+            const SizedBox(width: 4),
+            Text(
+              '$hearts / $maxHearts',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutOfHeartsScreen() {
+    final refillText = userProgress?.getHeartRefillText() ?? 'Try again soon';
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Quiz')),
+      body: Center(
+        child: Card(
+          margin: const EdgeInsets.all(24),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.favorite_border, color: Colors.red, size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'You are out of hearts',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Wait for hearts to refill.\n$refillText',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
