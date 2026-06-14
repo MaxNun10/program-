@@ -71,6 +71,8 @@ class _LessonsList extends StatelessWidget {
       itemCount: docs.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         final doc = docs[index];
         final data = doc.data() as Map<String, dynamic>;
         final title = (data['title'] ?? '').toString();
@@ -86,7 +88,9 @@ class _LessonsList extends StatelessWidget {
           opacity: isUnlocked ? 1 : 0.55,
           child: Card(
             margin: EdgeInsets.zero,
-            color: isUnlocked ? Colors.white : const Color(0xFFF0F2EF),
+            color: isUnlocked
+                ? Theme.of(context).cardColor
+                : colorScheme.surfaceContainerHighest,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -98,10 +102,10 @@ class _LessonsList extends StatelessWidget {
                 width: 46,
                 decoration: BoxDecoration(
                   color: isCompleted
-                      ? const Color(0xFFEAF8E5)
+                      ? const Color(0xFF58CC02).withAlpha(isDark ? 46 : 28)
                       : isUnlocked
-                      ? const Color(0xFFE8F6FF)
-                      : Colors.grey.shade200,
+                      ? const Color(0xFF1CB0F6).withAlpha(isDark ? 46 : 28)
+                      : colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -114,7 +118,7 @@ class _LessonsList extends StatelessWidget {
                       ? const Color(0xFF58CC02)
                       : isUnlocked
                       ? const Color(0xFF1CB0F6)
-                      : Colors.grey,
+                      : colorScheme.onSurfaceVariant,
                 ),
               ),
               title: Text(title),
@@ -131,16 +135,16 @@ class _LessonsList extends StatelessWidget {
                       ),
                     ),
                   if (!isUnlocked)
-                    const Text(
+                    Text(
                       'Complete previous lesson to unlock',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                 ],
               ),
               trailing: Text(
                 '#${index + 1}',
-                style: const TextStyle(
-                  color: Color(0xFF8B9A86),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.bold,
                 ),
               ),

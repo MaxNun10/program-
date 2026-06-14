@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/lesson_provider.dart';
+import 'providers/theme_provider.dart';
 import 'providers/word_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -29,78 +30,129 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => WordProvider()),
         ChangeNotifierProvider(create: (_) => LessonProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: 'Language Learning App',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF58CC02),
-          ),
-          useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xFFF7FBF4),
-          appBarTheme: const AppBarTheme(
-            centerTitle: true,
-            elevation: 0,
-            backgroundColor: Color(0xFFF7FBF4),
-            foregroundColor: Color(0xFF25351F),
-          ),
-          cardTheme: CardThemeData(
-            color: Colors.white,
-            elevation: 2,
-            shadowColor: Colors.black12,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF58CC02),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: Color(0xFF58CC02),
-            foregroundColor: Colors.white,
-          ),
-          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-            selectedItemColor: Color(0xFF58CC02),
-            unselectedItemColor: Color(0xFF8B9A86),
-            type: BottomNavigationBarType.fixed,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Language Learning App',
+            theme: _buildLightTheme(),
+            darkTheme: _buildDarkTheme(),
+            themeMode: themeProvider.themeMode,
+            home: const SplashScreen(),
+            routes: {
+              '/login': (context) => const LoginScreen(),
+              '/signup': (context) => const SignupScreen(),
+              '/home': (context) => const HomeScreen(),
+            },
+            onGenerateRoute: (settings) {
+              if (settings.name == '/lessons') {
+                return MaterialPageRoute(builder: (_) => const LessonsScreen());
+              }
+              final uri = Uri.parse(settings.name!);
+              if (uri.pathSegments.length == 2 &&
+                  uri.pathSegments[0] == 'lesson') {
+                final id = uri.pathSegments[1];
+                return MaterialPageRoute(
+                  builder: (_) => const LessonDetailScreen(),
+                  settings: RouteSettings(arguments: id),
+                );
+              }
+              if (uri.pathSegments.length == 3 &&
+                  uri.pathSegments[0] == 'lesson' &&
+                  uri.pathSegments[2] == 'quiz') {
+                final id = uri.pathSegments[1];
+                return MaterialPageRoute(
+                  builder: (_) => const LessonQuizScreen(),
+                  settings: RouteSettings(arguments: id),
+                );
+              }
+              return null;
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    return ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF58CC02)),
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFFF7FBF4),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Color(0xFFF7FBF4),
+        foregroundColor: Color(0xFF25351F),
+      ),
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 2,
+        shadowColor: Colors.black12,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF58CC02),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
-        home: const SplashScreen(),
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/signup': (context) => const SignupScreen(),
-          '/home': (context) => const HomeScreen(),
-        },
-        onGenerateRoute: (settings) {
-          if (settings.name == '/lessons') {
-            return MaterialPageRoute(builder: (_) => const LessonsScreen());
-          }
-          final uri = Uri.parse(settings.name!);
-          if (uri.pathSegments.length == 2 && uri.pathSegments[0] == 'lesson') {
-            final id = uri.pathSegments[1];
-            return MaterialPageRoute(
-              builder: (_) => const LessonDetailScreen(),
-              settings: RouteSettings(arguments: id),
-            );
-          }
-          if (uri.pathSegments.length == 3 &&
-              uri.pathSegments[0] == 'lesson' &&
-              uri.pathSegments[2] == 'quiz') {
-            final id = uri.pathSegments[1];
-            return MaterialPageRoute(
-              builder: (_) => const LessonQuizScreen(),
-              settings: RouteSettings(arguments: id),
-            );
-          }
-          return null;
-        },
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: Color(0xFF58CC02),
+        foregroundColor: Colors.white,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        selectedItemColor: Color(0xFF58CC02),
+        unselectedItemColor: Color(0xFF8B9A86),
+        type: BottomNavigationBarType.fixed,
+      ),
+    );
+  }
+
+  ThemeData _buildDarkTheme() {
+    return ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF58CC02),
+        brightness: Brightness.dark,
+      ),
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFF10170F),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Color(0xFF10170F),
+        foregroundColor: Color(0xFFEAF8E5),
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF182116),
+        elevation: 2,
+        shadowColor: Colors.black54,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF58CC02),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: Color(0xFF58CC02),
+        foregroundColor: Colors.white,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFF10170F),
+        selectedItemColor: Color(0xFF58CC02),
+        unselectedItemColor: Color(0xFF93A28E),
+        type: BottomNavigationBarType.fixed,
       ),
     );
   }

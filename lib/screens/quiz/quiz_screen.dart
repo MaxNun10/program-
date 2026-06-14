@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +16,8 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
+  static const int _questionDurationSeconds = 15;
+
   List<Map<String, dynamic>> _allWords = [];
   List<Map<String, dynamic>> _remainingWords = [];
   Map<String, dynamic>? _currentWord;
@@ -27,14 +31,25 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _isOutOfHearts = false;
   UserProgress? _userProgress;
   String? _lessonId;
+  Timer? _questionTimer;
+  int _secondsRemaining = _questionDurationSeconds;
+  bool _hasLoadedQuiz = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_hasLoadedQuiz) return;
+    _hasLoadedQuiz = true;
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     _lessonId = args?['lessonId'];
     _loadQuiz();
+  }
+
+  @override
+  void dispose() {
+    _questionTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadQuiz() async {
@@ -125,6 +140,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<void> _loadNextQuestion() async {
     if (_remainingWords.isEmpty) {
+      _questionTimer?.cancel();
       if (_isSavingResult) return;
 
       setState(() {
@@ -193,6 +209,28 @@ class _QuizScreenState extends State<QuizScreen> {
       _options = _generateOptions(_currentWord!);
       _answered = false;
       _selectedIndex = -1;
+      _secondsRemaining = _questionDurationSeconds;
+    });
+    _startQuestionTimer();
+  }
+
+  void _startQuestionTimer() {
+    _questionTimer?.cancel();
+    _questionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _answered || _isSavingResult || _isOutOfHearts) {
+        timer.cancel();
+        return;
+      }
+
+      if (_secondsRemaining <= 1) {
+        timer.cancel();
+        _handleTimeExpired();
+        return;
+      }
+
+      setState(() {
+        _secondsRemaining--;
+      });
     });
   }
 
@@ -223,6 +261,7 @@ class _QuizScreenState extends State<QuizScreen> {
   Future<void> _onAnswerSelected(int index) async {
     if (_answered) return;
 
+    _questionTimer?.cancel();
     final isCorrect = index == _correctIndex;
     setState(() {
       _selectedIndex = index;
@@ -235,6 +274,18 @@ class _QuizScreenState extends State<QuizScreen> {
     if (!isCorrect) {
       await _loseHeartForWrongAnswer();
     }
+  }
+
+  Future<void> _handleTimeExpired() async {
+    if (!mounted || _answered || _isSavingResult) return;
+
+    setState(() {
+      _secondsRemaining = 0;
+      _selectedIndex = -1;
+      _answered = true;
+    });
+
+    await _loseHeartForWrongAnswer();
   }
 
   Future<void> _loseHeartForWrongAnswer() async {
@@ -286,6 +337,8 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -317,7 +370,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     (_allWords.length - _remainingWords.length) /
                     _allWords.length,
                 minHeight: 12,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: colorScheme.surfaceContainerHighest,
                 valueColor: const AlwaysStoppedAnimation<Color>(
                   Color(0xFF58CC02),
                 ),
@@ -326,24 +379,28 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 14),
             Text(
               'Question ${_allWords.length - _remainingWords.length} of ${_allWords.length}',
-              style: const TextStyle(
-                color: Color(0xFF52624B),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
+            const SizedBox(height: 12),
+            _buildQuestionTimer(colorScheme),
             const SizedBox(height: 24),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(26),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E9DD)),
-                boxShadow: const [
+                border: Border.all(color: colorScheme.outlineVariant),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x14000000),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0x66000000)
+                        : const Color(0x14000000),
                     blurRadius: 14,
-                    offset: Offset(0, 6),
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
@@ -353,7 +410,7 @@ class _QuizScreenState extends State<QuizScreen> {
                   _currentWord?['en'] ?? '',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF25351F),
+                    color: colorScheme.onSurface,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -368,14 +425,16 @@ class _QuizScreenState extends State<QuizScreen> {
                 child: ElevatedButton(
                   onPressed: _answered ? null : () => _onAnswerSelected(index),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _getButtonColor(index) ?? Colors.white,
+                    backgroundColor:
+                        _getButtonColor(index) ?? Theme.of(context).cardColor,
                     disabledBackgroundColor:
-                        _getButtonColor(index) ?? Colors.white,
+                        _getButtonColor(index) ?? Theme.of(context).cardColor,
                     foregroundColor: _getOptionTextColor(index),
                     disabledForegroundColor: _getOptionTextColor(index),
                     minimumSize: const Size(double.infinity, 54),
                     side: BorderSide(
-                      color: _getButtonColor(index) ?? const Color(0xFFDDE7D7),
+                      color:
+                          _getButtonColor(index) ?? colorScheme.outlineVariant,
                       width: 1.4,
                     ),
                   ),
@@ -392,7 +451,11 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 32),
             if (_answered)
               Text(
-                _selectedIndex == _correctIndex ? 'Correct!' : 'Wrong',
+                _selectedIndex == -1
+                    ? 'Time is up!'
+                    : _selectedIndex == _correctIndex
+                    ? 'Correct!'
+                    : 'Wrong',
                 style: TextStyle(
                   color: _selectedIndex == _correctIndex
                       ? Colors.green
@@ -429,11 +492,53 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Color _getOptionTextColor(int index) {
-    if (!_answered) return const Color(0xFF25351F);
+    if (!_answered) return Theme.of(context).colorScheme.onSurface;
     if (index == _correctIndex || index == _selectedIndex) {
       return Colors.white;
     }
-    return const Color(0xFF52624B);
+    return Theme.of(context).colorScheme.onSurfaceVariant;
+  }
+
+  Widget _buildQuestionTimer(ColorScheme colorScheme) {
+    final progress = (_secondsRemaining / _questionDurationSeconds).clamp(
+      0.0,
+      1.0,
+    );
+    final isLowTime = _secondsRemaining <= 5;
+    final timerColor = isLowTime ? Colors.red : const Color(0xFF58CC02);
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.timer_outlined,
+              size: 18,
+              color: isLowTime ? timerColor : colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '$_secondsRemaining s',
+              style: TextStyle(
+                color: isLowTime ? timerColor : colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress.toDouble(),
+            minHeight: 8,
+            backgroundColor: colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildHeartsIndicator() {

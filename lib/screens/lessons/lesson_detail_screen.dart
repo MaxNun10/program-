@@ -95,6 +95,9 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
+                    final colorScheme = Theme.of(context).colorScheme;
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
                     final doc = docs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     final word = data['word'] ?? '';
@@ -111,7 +114,9 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                           height: 42,
                           width: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F6FF),
+                            color: const Color(
+                              0xFF1CB0F6,
+                            ).withAlpha(isDark ? 46 : 28),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -130,10 +135,10 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                             if (example.isNotEmpty)
                               Text(
                                 example,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontStyle: FontStyle.italic,
-                                  color: Colors.grey,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                           ],

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/word.dart';
 import '../../models/progress.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../providers/word_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/speech_service.dart';
@@ -137,25 +138,26 @@ class _WordsListState extends State<WordsList> {
   @override
   Widget build(BuildContext context) {
     final wordProvider = Provider.of<WordProvider>(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     if (wordProvider.words.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.menu_book, size: 64, color: Color(0xFF58CC02)),
-              SizedBox(height: 16),
-              Text(
+              const Icon(Icons.menu_book, size: 64, color: Color(0xFF58CC02)),
+              const SizedBox(height: 16),
+              const Text(
                 'No words yet',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Add your first word to start learning.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF52624B)),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -179,7 +181,9 @@ class _WordsListState extends State<WordsList> {
               height: 46,
               width: 46,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF8E5),
+                color: const Color(0xFF58CC02).withAlpha(
+                  Theme.of(context).brightness == Brightness.dark ? 46 : 28,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.translate, color: Color(0xFF58CC02)),
@@ -191,11 +195,17 @@ class _WordsListState extends State<WordsList> {
                 Text('${word.translation} - ${word.category}'),
                 Text(
                   'Difficulty: ${word.difficulty}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Text(
                   'Correct: ${word.correctCount}  Incorrect: ${word.incorrectCount}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -287,28 +297,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
+  Color get _cardBackground => Theme.of(context).cardColor;
+
+  Color get _cardBorder => Theme.of(context).colorScheme.outlineVariant;
+
+  Color get _mutedText => Theme.of(context).colorScheme.onSurfaceVariant;
+
+  Color _softColor(Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return color.withAlpha(isDark ? 46 : 28);
+  }
+
+  List<BoxShadow> get _softShadow {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return [
+      BoxShadow(
+        color: isDark ? const Color(0x66000000) : const Color(0x10000000),
+        blurRadius: 10,
+        offset: const Offset(0, 4),
+      ),
+    ];
+  }
+
   Widget _buildDailyGoalCard(UserProgress progress) {
     final dailyGoal = progress.effectiveDailyGoal;
     final progressValue = (progress.todayXp / dailyGoal).clamp(0.0, 1.0);
     final percent = (progressValue * 100).round();
     final isCompleted = progress.todayXp >= dailyGoal;
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = isCompleted ? const Color(0xFF58CC02) : Colors.orange;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isCompleted ? const Color(0xFFEAF8E5) : Colors.white,
+        color: isCompleted
+            ? _softColor(const Color(0xFF58CC02))
+            : _cardBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCompleted ? const Color(0xFF58CC02) : Colors.grey.shade300,
+          color: isCompleted ? const Color(0xFF58CC02) : _cardBorder,
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        boxShadow: _softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Icon(
                 isCompleted ? Icons.check_circle : Icons.flag,
-                color: isCompleted ? const Color(0xFF58CC02) : Colors.orange,
+                color: accentColor,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -334,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(
                   color: isCompleted
                       ? const Color(0xFF58CC02)
-                      : Colors.grey.shade700,
+                      : colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -348,10 +378,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: LinearProgressIndicator(
               value: progressValue.toDouble(),
               minHeight: 12,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isCompleted ? const Color(0xFF58CC02) : Colors.orange,
-              ),
+              backgroundColor: colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(accentColor),
             ),
           ),
         ],
@@ -455,28 +483,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : progress.maxHearts;
     final hearts = progress.hearts.clamp(0, maxHearts).toInt();
     final isFull = hearts >= maxHearts;
+    final heartColor = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFFF6B6B)
+        : Colors.red;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade100),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: _softColor(heartColor)),
+        boxShadow: _softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.favorite, color: Colors.red),
+              Icon(Icons.favorite, color: heartColor),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -486,8 +511,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               Text(
                 '$hearts / $maxHearts',
-                style: const TextStyle(
-                  color: Colors.red,
+                style: TextStyle(
+                  color: heartColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -500,7 +525,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(right: 4),
                 child: Icon(
                   index < hearts ? Icons.favorite : Icons.favorite_border,
-                  color: Colors.red,
+                  color: heartColor,
                   size: 22,
                 ),
               );
@@ -591,24 +616,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: _cardBorder),
+        boxShadow: _softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.insights, color: Color(0xFF1CB0F6)),
-              SizedBox(width: 8),
+              const Icon(Icons.insights, color: Color(0xFF1CB0F6)),
+              const SizedBox(width: 8),
               Text(
                 'Learning Summary',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -673,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withAlpha(28),
+        color: _softColor(color),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -694,10 +713,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF52624B),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: _mutedText, fontSize: 12),
                 ),
               ],
             ),
@@ -785,9 +801,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: _cardBorder),
+        boxShadow: _softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -806,16 +823,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildSettingsCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colorScheme.outlineVariant),
+            boxShadow: _softShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.settings, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Settings',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: Icon(
+                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  color: colorScheme.primary,
+                ),
+                title: const Text('Dark Theme'),
+                subtitle: Text(
+                  themeProvider.isDarkMode ? 'Dark mode is on' : 'Light mode',
+                ),
+                value: themeProvider.isDarkMode,
+                activeThumbColor: const Color(0xFF58CC02),
+                onChanged: themeProvider.setDarkMode,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildStatRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: Color(0xFF52624B)),
-            ),
+            child: Text(label, style: TextStyle(color: _mutedText)),
           ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
@@ -852,6 +915,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildProfileHeader(authProvider.user?.email ?? 'N/A', userProgress),
+          const SizedBox(height: 16),
+          _buildSettingsCard(),
           const SizedBox(height: 16),
           _buildLearningSummaryCard(
             totalWords: wordProvider.words.length,
