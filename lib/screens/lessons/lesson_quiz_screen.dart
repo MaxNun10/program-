@@ -56,8 +56,8 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
 
     try {
       final service = LessonsService();
-      await saveQuizScore(service.userId!, lessonId, correctCount);
       final provider = Provider.of<LessonProvider>(context, listen: false);
+      await saveQuizScore(service.userId!, lessonId, correctCount);
       provider.updateLessonProgress(lessonId, {
         'score': correctCount,
         'completed': true,
@@ -72,9 +72,9 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
         completedLessonId: lessonId,
       );
       if (mounted && newProgress.shouldCelebrateDailyGoal) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Daily Goal Completed!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Daily Goal Completed!')));
         try {
           await firestoreService.markDailyGoalCelebrated();
         } catch (_) {}
@@ -198,9 +198,9 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update hearts')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to update hearts')));
     }
   }
 
@@ -364,8 +364,7 @@ class _LessonQuizScreenState extends State<LessonQuizScreen> {
                   child: const Text('Previous'),
                 ),
                 ElevatedButton(
-                  onPressed: isCompleting
-                          || (userProgress?.hearts ?? 0) <= 0
+                  onPressed: isCompleting || (userProgress?.hearts ?? 0) <= 0
                       ? null
                       : () {
                           if (currentIndex == questions.length - 1) {

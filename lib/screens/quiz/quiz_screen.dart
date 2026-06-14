@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../../models/progress.dart';
+import '../../providers/word_provider.dart';
 import '../../services/firestore_service.dart';
 import 'quiz_result_screen.dart';
 
@@ -72,6 +74,29 @@ class _QuizScreenState extends State<QuizScreen> {
       if (_remainingWords.isNotEmpty) {
         await _loadNextQuestion();
       }
+    } else {
+      final words = Provider.of<WordProvider>(context, listen: false).words;
+
+      _allWords = words
+          .where(
+            (word) =>
+                word.original.trim().isNotEmpty &&
+                word.translation.trim().isNotEmpty,
+          )
+          .map(
+            (word) => {
+              'id': word.id,
+              'en': word.original,
+              'ua': word.translation,
+            },
+          )
+          .toList();
+
+      _remainingWords = List.from(_allWords);
+      _remainingWords.shuffle();
+      if (_remainingWords.isNotEmpty) {
+        await _loadNextQuestion();
+      }
     }
 
     if (!mounted) return;
@@ -124,9 +149,9 @@ class _QuizScreenState extends State<QuizScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save XP')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Failed to save XP')));
         }
       }
 
@@ -225,9 +250,9 @@ class _QuizScreenState extends State<QuizScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update hearts')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to update hearts')));
     }
   }
 
@@ -288,7 +313,8 @@ class _QuizScreenState extends State<QuizScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
-                value: (_allWords.length - _remainingWords.length) /
+                value:
+                    (_allWords.length - _remainingWords.length) /
                     _allWords.length,
                 minHeight: 12,
                 backgroundColor: Colors.grey.shade200,

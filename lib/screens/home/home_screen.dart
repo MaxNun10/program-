@@ -5,6 +5,7 @@ import '../../models/progress.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/word_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/speech_service.dart';
 import '../quiz/quiz_screen.dart';
 import 'add_word_screen.dart';
 import 'edit_word_screen.dart';
@@ -83,6 +84,17 @@ class WordsList extends StatefulWidget {
 }
 
 class _WordsListState extends State<WordsList> {
+  Future<void> _playWordAudio(String text) async {
+    try {
+      await SpeechService.speak(text);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not play audio')));
+    }
+  }
+
   void _showDeleteDialog(BuildContext context, Word word) {
     final wordProvider = Provider.of<WordProvider>(context, listen: false);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -159,50 +171,61 @@ class _WordsListState extends State<WordsList> {
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: Container(
-            height: 46,
-            width: 46,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF8E5),
-              borderRadius: BorderRadius.circular(12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
             ),
-            child: const Icon(Icons.translate, color: Color(0xFF58CC02)),
-          ),
-          title: Text(word.original),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${word.translation} - ${word.category}'),
-              Text(
-                'Correct: ${word.correctCount}  Incorrect: ${word.incorrectCount}',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            leading: Container(
+              height: 46,
+              width: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8E5),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Difficulty: ${word.difficulty}'),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => EditWordScreen(word: word)),
+              child: const Icon(Icons.translate, color: Color(0xFF58CC02)),
+            ),
+            title: Text(word.original),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${word.translation} - ${word.category}'),
+                Text(
+                  'Difficulty: ${word.difficulty}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red,
-                onPressed: () => _showDeleteDialog(context, word),
-              ),
-            ],
-          ),
+                Text(
+                  'Correct: ${word.correctCount}  Incorrect: ${word.incorrectCount}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Listen',
+                  icon: const Icon(Icons.volume_up_outlined),
+                  color: const Color(0xFF1CB0F6),
+                  onPressed: () => _playWordAudio(word.original),
+                ),
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditWordScreen(word: word),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline),
+                  color: Colors.red,
+                  onPressed: () => _showDeleteDialog(context, word),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -247,17 +270,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _showDailyGoalCelebrationIfNeeded(
-    UserProgress progress,
-  ) async {
+  Future<void> _showDailyGoalCelebrationIfNeeded(UserProgress progress) async {
     if (!mounted || !progress.shouldCelebrateDailyGoal) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Daily Goal Completed!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Daily Goal Completed!')));
 
     try {
-      final updatedProgress = await FirestoreService().markDailyGoalCelebrated();
+      final updatedProgress = await FirestoreService()
+          .markDailyGoalCelebrated();
       if (!mounted) return;
       setState(() {
         userProgress = updatedProgress;
@@ -412,9 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value: value,
                   minHeight: 14,
                   backgroundColor: Colors.white.withAlpha(80),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Colors.white,
-                  ),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               );
             },
@@ -493,6 +513,316 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildProfileHeader(String email, UserProgress? progress) {
+    final totalXp = progress?.xp ?? 0;
+    final level = progress == null ? 1 : UserProgress.calculateLevel(totalXp);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF58CC02), Color(0xFF9BE564)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 64,
+            width: 64,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(235),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(Icons.person, color: Color(0xFF58CC02), size: 36),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Profile',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Level $level - $totalXp XP',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLearningSummaryCard({
+    required int totalWords,
+    required int completedLessons,
+    required int totalAttempts,
+    required int accuracy,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.insights, color: Color(0xFF1CB0F6)),
+              SizedBox(width: 8),
+              Text(
+                'Learning Summary',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryTile(
+                  Icons.menu_book,
+                  'Words',
+                  '$totalWords',
+                  const Color(0xFF58CC02),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildSummaryTile(
+                  Icons.check_circle,
+                  'Lessons',
+                  '$completedLessons',
+                  const Color(0xFF58CC02),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryTile(
+                  Icons.bolt,
+                  'Attempts',
+                  '$totalAttempts',
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildSummaryTile(
+                  Icons.track_changes,
+                  'Accuracy',
+                  '$accuracy%',
+                  const Color(0xFF1CB0F6),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryTile(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF52624B),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStreakCard(UserProgress progress) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.red.shade400, Colors.orange.shade400],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 50,
+            width: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(45),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.local_fire_department,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Streak',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${progress.streak} days in a row',
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${progress.streak}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuizStatsCard({
+    required int totalAttempts,
+    required int totalCorrect,
+    required int totalIncorrect,
+    required int accuracy,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quiz Statistics',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          _buildStatRow('Total Attempts', '$totalAttempts'),
+          _buildStatRow('Correct Answers', '$totalCorrect'),
+          _buildStatRow('Incorrect Answers', '$totalIncorrect'),
+          _buildStatRow('Accuracy', '$accuracy%'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF52624B)),
+            ),
+          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -510,6 +840,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final accuracy = totalAttempts > 0
         ? (totalCorrect / totalAttempts * 100).round()
         : 0;
+    final completedLessons = userProgress?.completedLessons.length ?? 0;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -520,16 +851,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Profile',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          _buildProfileHeader(authProvider.user?.email ?? 'N/A', userProgress),
+          const SizedBox(height: 16),
+          _buildLearningSummaryCard(
+            totalWords: wordProvider.words.length,
+            completedLessons: completedLessons,
+            totalAttempts: totalAttempts,
+            accuracy: accuracy,
           ),
-          const SizedBox(height: 16),
-          Text('Email: ${authProvider.user?.email ?? 'N/A'}'),
-          const SizedBox(height: 16),
-          Text('Total Words: ${wordProvider.words.length}'),
           const SizedBox(height: 16),
           if (userProgress != null) ...[
             _buildHeartsCard(userProgress!),
@@ -538,59 +867,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             _buildXpProgressCard(userProgress!),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.red.shade400, Colors.orange.shade400],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    '🔥 Streak',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${userProgress!.streak} days',
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Level: ${userProgress!.level}'),
-            Text('Total XP: ${userProgress!.xp}'),
+            _buildStreakCard(userProgress!),
             const SizedBox(height: 16),
           ],
-          Text(
-            'Quiz Statistics:',
-            style: Theme.of(context).textTheme.titleMedium,
+          _buildQuizStatsCard(
+            totalAttempts: totalAttempts,
+            totalCorrect: totalCorrect,
+            totalIncorrect: totalIncorrect,
+            accuracy: accuracy,
           ),
-          const SizedBox(height: 8),
-          Text('Total Attempts: $totalAttempts'),
-          Text('Correct Answers: $totalCorrect'),
-          Text('Incorrect Answers: $totalIncorrect'),
-          Text('Accuracy: $accuracy%'),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/speech_service.dart';
 import '../quiz/quiz_screen.dart';
 
 class LessonDetailScreen extends StatefulWidget {
@@ -12,6 +13,17 @@ class LessonDetailScreen extends StatefulWidget {
 class _LessonDetailScreenState extends State<LessonDetailScreen> {
   late String lessonId;
   late String lessonTitle;
+
+  Future<void> _playWordAudio(String text) async {
+    try {
+      await SpeechService.speak(text);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not play audio')));
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -125,6 +137,12 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                                 ),
                               ),
                           ],
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Listen',
+                          icon: const Icon(Icons.volume_up_outlined),
+                          color: const Color(0xFF1CB0F6),
+                          onPressed: () => _playWordAudio(word.toString()),
                         ),
                       ),
                     );
